@@ -17,26 +17,22 @@ if( !any(grepl("--interactive", initial.options)) ) {
   DevelopmentMode = FALSE
 } else {
   # development mode (inside RStudio) we can set options using these variables
+  #
+  # Assumes:
+  #   ~/BloodChIP/Src points to source directory
+  #   ~/BloodChIP/Data points to root above Analysis directories 
+  #   
+  # It is highly recommended to reset the environment ("Clear Objects" in RStudio) prior to running
+  #
+  
   DevelopmentMode = TRUE
-  Mod = "H3K4me3-scer/"
-  SourceDIR = "~/GoogleDrive/Src/BloodChIPAnalysis/"
-  # SourceDIR = "~/GoogleDrive/BloodChIPAnalysis/"
+  Mod = "H3K4me3/"
+  SourceDIR = "~/BloodChIP/Src/"
   ANNOTDIR = paste0(SourceDIR, "SetupFiles/", Mod)
-  DataDir = paste0("~/GoogleDrive/BloodChIP/Analysis/Samples/", Mod)
-  BedDir = paste0("~/GoogleDrive/BloodChIP/Analysis/BED/", Mod)
-  OutputDir = paste0("~/GoogleDrive/BloodChIP/Analysis/Output/", Mod)
-  SetupDIR  = ANNOTDIR
   trailing.options = paste(
-    #                   "-r /Users/nir/GoogleDrive/BloodChIP/Analysis-Paper",
-    # "-r /Users/nir/GoogleDrive/BloodChIP/Analysis",
-    # "-r /Users/nir/GoogleDrive/BloodChIP/Analysis-Blueprint",
-    "-r ~/GoogleDrive/BloodChIP/Analysis",
-    "-A",
-    "-m H3K4me3-scer", "PS003_15_24hr_RT_No_PI.K4me3-9-Aug-2019_S16.yeast.tagAlign"
-    #  "-o /Users/nir/GoogleDrive/BloodChIP/Analysis-Paper/Figures/H3K36me3",
-    #  "--geneprograms=/Users/nir/GoogleDrive/BloodChIP/Analysis-Paper/Figures/H3K36me3/TCGA-short-gene-sig.csv",
-    #  "--config=/Users/nir/GoogleDrive/BloodChIP/Analysis-Paper/Figures/H3K36me3/config.csv",
-    #    "--plotsignatures=FigS4D E062 E066 E034",
+    "-r ~/BloodChIP/Data/Analysis-Paper",
+    "-p ~/BloodChIP/Data/Analysis-Paper",
+   "" 
   )
   trailing.options = strsplit(trailing.options, " ")[[1]]
   catn(trailing.options)
@@ -79,8 +75,9 @@ option_list = list(
   make_option(c("-m", "--mod"), type="character", default="H3K4me3",
               help="name of modification, used in combination with -r" ),
   make_option(c("-r", "--root"), type="character", default=NULL,
-              help="name of root directory, input/output is assumed to be in Root/XXX/mod" ),
-  
+              help="name of root directory, input is assumed to be in Root/XXX/mod" ),
+  make_option(c("-p", "--project"), type="character", default=NULL,
+              help="name of project root directory, output is assumed to be in Project/XXX/mod" ),
   
 # basic processing   
   make_option(c("-B", "--background"),  action = "store_true", type="logical", default=FALSE, 
@@ -94,9 +91,14 @@ option_list = list(
   make_option(c("-A", "--all"),  action = "store_true", type="logical", default=FALSE, 
             help="Compute all relevant data for each file (equivalent to -BCN)"),
   make_option(c("-F", "--force"),  action = "store_true", type="logical", default=FALSE, 
-            help="Forced recomputing"),
+            help="Force recomputing"),
+make_option("--hardforce",  action = "store_true", type="logical", default=FALSE, 
+            help="Force recomputing from BED file"),
+
 
 # action per file 
+  make_option(c("-X", "--extra"), action="store_true",type="logical", default=FALSE, 
+              help = "Run all typical outputs per file"),
   make_option(c("-T", "--tracks"),  action = "store_true", type="logical", default=FALSE, 
             help = "Create normalized genome browser tracks"),
   make_option(c("-M", "--meta"),  action = "store_true", type="logical", default=FALSE, 
@@ -105,14 +107,27 @@ option_list = list(
             help = "Evaluate enrichments of overexpressed genes"),
   make_option(c("-S", "--signatures"),  action = "store_true", type="logical", default=FALSE, 
             help = "Evaluate signatures of cell types"),
+  make_option("--signaturesvshealthy",  action = "store_true", type="logical", default=FALSE, 
+            help = "Evaluate signatures of cell types vs healthy samples"),
+
   make_option(c("-P", "--programs"),  action = "store_true", type="logical", default=FALSE, 
             help = "Evaluate expression programs"),
+  make_option("--ctDNA",  action = "store_true", type="logical", default=FALSE, 
+            help = "Estimate ctDNA fraction"),
   make_option("--backgroundplot",type="logical", default=FALSE, action="store_true", 
               help = "Plot background coverage in output directory"),
+  make_option("--fraglenplot",type="logical", default=FALSE, action="store_true", 
+            help = "Plot fragment length distribution in output directory"),
+  make_option("--writeforce",  action = "store_true", type="logical", default=FALSE, 
+            help="Force writing of output files such as tracks and plots"),
 
 # global output
   make_option(c("--consensus"),  type="character", default=NULL, 
               help = "Compute consensus (avg after re-normalization) and write to specified file"),
+  make_option("--winconsensus",  type="character", default=NULL, 
+            help = "Compute consensus for window signatures and write to specified file"),
+  make_option("--geneconsensus",  type="character", default=NULL, 
+            help = "Compute consensus for gene programs and write to specified file"),
   make_option("--genecounts",  type="character", default=NULL, 
             help = "output table of gene counts to specified file"),
   make_option("--genebackground",  type="character", default=NULL, 
@@ -127,8 +142,14 @@ option_list = list(
             help = "output plot of program enrichment to specified file"),
   make_option("--plotenrichments",  type="character", default=NULL, 
             help = "output plot of program enrichment (HyperGeometric) to specified file"),
+  make_option("--select",  type="character", default=NULL, 
+              help = "Select subset of programs/signatures for plots"),
+  make_option("--plotdetails", type = "logical", action = "store_true", default = FALSE,
+              help = "Generete detailed plots for each programs/signatures"),
   make_option("--export",  type="character", default=NULL, 
             help = "export data to RDS file"),
+  make_option("--ExportNormCounts", type="character", default=NULL, 
+             help = "export normalized count data to RDS file"),
   make_option("--QC", type = "character", default = NULL,
               help = "prepare QC report to file"),
   make_option("--cluster", type = "character", default = NULL,
@@ -169,8 +190,13 @@ if( !is.null(opt$options$root)) {
   RootDir =  extendDir(opt$options$root)
   DataDir = paste0(RootDir, "Samples/", TargetMod, "/")
   BedDir = paste0(RootDir, "BED/", TargetMod, "/")
-  TracksDIR = paste0(RootDir, "Tracks/", TargetMod, "/")
-  OutputDir = paste0(RootDir, "Output/", TargetMod, "/")
+#  TracksDIR = paste0(RootDir, "Tracks/", TargetMod, "/")
+#  OutputDir = paste0(RootDir, "Output/", TargetMod, "/")
+} 
+if( !is.null(opt$options$project)) {
+  ProjectDir =  extendDir(opt$options$project)
+  TracksDIR = paste0(ProjectDir, "Tracks/", TargetMod, "/")
+  OutputDir = paste0(ProjectDir, "Output/", TargetMod, "/")
 } 
 ANNOTDIR = paste0(SourceDIR, "SetupFiles/", TargetMod, "/")
 
@@ -211,6 +237,57 @@ if( !exists("SetupDIR") )
   SetupDIR = ANNOTDIR
 # catn("setupDir is: ", SetupDIR)
 
+
+ReadSignatureList = function(Sig.filename, type = "signature") {
+  Sig.filename = unlist(strsplit(Sig.filename, ","))
+  
+  for( f in Sig.filename )
+    if( !file.exists(f) ) {
+      catn("Cannot find", type,"file", f)
+      return(NULL)
+  }
+  Sig.list = list()
+  
+  for( f in Sig.filename ) {
+    catn("Reading", type, "from", f)
+    ZZ = read.csv(f, as.is = TRUE)
+    Sig = split(ZZ[,2], ZZ[,1])
+    if( type == "programs")
+      Sig = sapply(Sig, function(s) intersect(s, Genes.notexcluded))
+    f.Ref = sub("csv$", "rds", f)
+    Sig.Ref = NULL
+    if( file.exists(f.Ref) ) {
+      catn("Reading", type, "reference from", f.Ref)
+      Sig.Ref = readRDS(f.Ref)
+      if( length(Sig) != length(Sig.Ref$avg) || any(names(Sig) != names(Sig.Ref$avg)) ) {
+        catn("Mismatch in consensus of signature", f)
+        Sig.Ref = NULL
+      }
+    }
+    if( is.null(Sig.Ref) ) {
+      if( type == "programs") {
+        if( exists("Healthy.GeneCount") )
+          Sig.Ref = list( avg = sapply(Sig, function(p) sum(Healthy.GeneCount[p])),
+                          var = sapply(Sig, function(p) sum(Healthy.GeneCount.var[p])))
+        } else
+          if( exists("Healthy.WinCount") )
+            Sig.Ref = list( avg = sapply(Sig, function(p) sum(Healthy.WinCount[p])),
+                            var = sapply(Sig, function(p) sum(Healthy.WinCount.var[p])))
+    }        
+
+    if( !is.null(Sig.Ref)) {
+      Sig.list[[f]] = list(Sig = Sig, avg = Sig.Ref$avg, var = Sig.Ref$var )
+    } else 
+      Sig.list[[f]] = list(Sig = Sig, avg = c(), var = c() )
+  } 
+  names(Sig.list) = NULL
+  Sig = do.call("c", lapply(Sig.list, function(x) x$Sig))
+  Sig.Ref = list( avg = do.call("c", lapply(Sig.list, function(x) x$avg)),
+                  var = do.call("c", lapply(Sig.list, function(x) x$var))
+  )
+  list(Sig = Sig, Ref = Sig.Ref, List = lapply(Sig.list, function(x) names(x$Sig)))
+}
+
 #initialize variables
 {
   TSS.windows = readRDS(paste0(SetupDIR,"Windows.rds"))
@@ -221,36 +298,36 @@ if( !exists("SetupDIR") )
     ChrList = (seqnames(genome.seqinfo))
   }
 
-  Win.Sig.filename = paste0(SetupDIR, "WIN-sig.csv")
+  Win.Sig.filename = paste0(SetupDIR, "Win-sig.csv")
   Win.Sig = NULL
+  Win.Sig.Ref = NULL
   if( !is.null(opt$options$windowsignatures))
     Win.Sig.filename = opt$options$windowsignatures
-  if( file.exists( Win.Sig.filename) ) {
-#    Win.Sig=readRDS(Win.Sig.filename)
-    catn("Reading window signatures from", Win.Sig.filename)
-    ZZ = read.csv(Win.Sig.filename, as.is = TRUE)
-    Win.Sig = split(ZZ$window, ZZ$signature)
-  }
+  ll = ReadSignatureList(Win.Sig.filename)
+  if( !is.null(ll) ) {
+    Win.Sig = ll$Sig
+    Win.Sig.Ref = ll$Ref
+  } 
   
   source(paste0(SourceDIR,"Background.R"))
   source(paste0(SourceDIR,"ComputeGeneCounts.R"))
   source(paste0(SourceDIR,"CommonGenes.R"))
   Genes.notexcluded = Genes[!Genes.excluded]
   source(paste0(SourceDIR, "cfChIP-Functions.R"))  
-  source(paste0(SourceDIR, "YieldEstimation-Functions.R"))
-  
-  
+
   GenePrograms.filename =  paste0(SetupDIR, "Gene-sig.csv")
   Gene.Programs = NULL
+  Gene.Programs.Ref = NULL
+  Gene.Programs.Partition = NULL
   if( !is.null(opt$options$geneprograms))
     GenePrograms.filename = opt$options$geneprograms
-  if( file.exists(GenePrograms.filename) ) {
-    catn("Reading gene programs from", GenePrograms.filename)
-    ZZ = read.csv(GenePrograms.filename, as.is = TRUE)
-    ZZ = ZZ[ZZ$gene %in% Genes,]
-    Gene.Programs = split(ZZ$gene,ZZ$program)
+  ll = ReadSignatureList(GenePrograms.filename,"programs")
+  if(!is.null(ll)) {
+    Gene.Programs = ll$Sig
+    Gene.Programs.Ref = ll$Ref
+    Gene.Programs.Partition = ll$List
   }
-
+  
   MetaGene.filename = paste0(SetupDIR, "Meta-genes.bed")
   MetaGene = NULL
   if( !is.null(opt$options$metagenes))  
@@ -282,12 +359,14 @@ if( !exists("SetupDIR") )
   QC.filename = paste0(SetupDIR,"QC.bed")
   QC.bed = TSS.windows
   if( file.exists(QC.filename) ) {
+    catn("Reading QC bed file",QC.filename)
     QC.bed = import(QC.filename)
     QC.bed$type = QC.bed$name
   }
   
   
 }
+
 
 params = cfChIP.Params()
 params$DataDir = DataDir
@@ -312,6 +391,18 @@ params$GeneCounts = opt$options$count
 params$Normalize = opt$options$normalize
 params$OverExpressedGenes = opt$options$overexpressed
 doOverExpressedGenes = opt$options$overexpressed
+if( opt$options$extra ) {
+  opt$options$all = TRUE
+  opt$options$tracks = TRUE
+  opt$options$signatures = TRUE
+  opt$options$signaturesvshealthy  = TRUE
+  opt$options$programs = TRUE
+  opt$options$backgroundplot = TRUE
+  opt$options$fraglenplot = TRUE
+#  opt$options$meta = TRUE
+#  opt$options$enrichR = TRUE
+}
+
 if( opt$options$all ) {
   params$Background = TRUE
   params$GeneBackground = TRUE
@@ -320,14 +411,29 @@ if( opt$options$all ) {
   params$OverExpressedGenes = TRUE
 }
 
-doForce = opt$options$force
+doHardForce = opt$options$hardforce
+doForce = opt$options$force || doHardForce
+doWriteForce = opt$options$force || opt$options$writeforce
 
 doMeta = opt$options$meta
 doTracks = opt$options$tracks
 doEnrichR = opt$options$enrichR
 doSignatures = opt$options$signatures
+doSignaturesVsHealthy = opt$options$signaturesvshealthy
 doPrograms = opt$options$programs
 doBackgroundPlot = opt$options$backgroundplot
+doFragmentPlot = opt$options$fraglenplot
+doctDNA = opt$options$ctDNA
+
+
+if( doPrograms &&  is.null(Gene.Programs) ) {
+  stop("Cannot evaluate gene programs -- missing programs!")
+}
+
+if( (doSignatures || doSignaturesVsHealthy) &&  is.null(Win.Sig) ) {
+  stop("Cannot evaluate signatures -- missing signatures!")
+}
+
 
 if( DevelopmentMode ) {
 #  params$Background = TRUE
@@ -341,7 +447,8 @@ if( DevelopmentMode ) {
   
 }
 
-if( doMeta || doTracks || doSignatures )
+
+if( doMeta || doTracks || doSignatures || doSignaturesVsHealthy )
   params$Normalize = TRUE
 
 if( doEnrichR  || doPrograms )
@@ -364,6 +471,28 @@ if(doConsensus ) {
   params$GeneCounts = TRUE
   RetainInMemory = TRUE
 }
+
+doWinSignatureConsensus =  !is.null(opt$options$winconsensus)
+if( doWinSignatureConsensus ) {
+  outputWinSigConsensus = outputFile(opt$options$winconsensus)
+  RetainInMemory = TRUE
+  if( is.null(Win.Sig) ) {
+    stop("Cannot evaluate window signatures -- missing signatures!")
+  }
+}
+
+
+doGeneSignatureConsensus =  !is.null(opt$options$geneconsensus)
+if( doGeneSignatureConsensus ) {
+  outputGeneSigConsensus = outputFile(opt$options$geneconsensus)
+  params$GeneBackground = TRUE
+  params$GeneCounts = TRUE
+  RetainInMemory = TRUE
+  if( is.null(Gene.Programs) ) {
+    stop("Cannot evaluate gene programs -- missing programs!")
+  }
+}
+
 
 doGeneCountsTable = !is.null(opt$options$genecounts)
 if(doGeneCountsTable ) {
@@ -393,8 +522,12 @@ if( doNormCountsTable ) {
   RetainInMemory = TRUE
 }
 
+
+
 doPlotSignatures = !is.null(opt$options$plotsignatures)
 if(doPlotSignatures  ) {
+  if( is.null(params$Signatures) )
+    stop("Error: missing signatures for --plotsignatures")
   outputPlotSignatures = outputFile(opt$options$plotsignatures)
   params$Normalize = TRUE
   params$OverExpressedGenes = TRUE
@@ -403,6 +536,8 @@ if(doPlotSignatures  ) {
 
 doPlotPrograms = !is.null(opt$options$plotprograms)
 if( doPlotPrograms ) {
+  if( is.null(params$Programs) )
+    stop("Error: missing gene programs for --plotprograms")
   outputPlotPrograms = outputFile(opt$options$plotprograms)
   params$Normalize = TRUE
   params$OverExpressedGenes = TRUE
@@ -411,16 +546,55 @@ if( doPlotPrograms ) {
 
 doPlotEnrichments = !is.null(opt$options$plotenrichments)
 if( doPlotEnrichments ) {
+  if( is.null(params$Programs) )
+    catn("Error: missing gene programs for --plotenrichments")
   outputPlotEnrichments = outputFile(opt$options$plotenrichments)
   params$Normalize = TRUE
   params$OverExpressedGenes = TRUE
   RetainInMemory = TRUE
 }
 
+if( opt$options$plotdetails ) {
+  if( !(doPlotPrograms || doPlotSignatures) )
+    catn("Warning: --plotdetails requires either --plotprograms or --plotsignatures")
+  params$PlotSignatures.IndividualHeatmap = TRUE
+  params$PlotPrograms.IndividualHeatmap = TRUE
+  params$PlotPrograms.IndividualBarChart = TRUE
+  params$PlotPrograms.IndividualCSV = TRUE
+}
+
+if( !is.null(opt$options$select) ) {
+  if( !(doPlotPrograms || doPlotSignatures) )
+    catn("Warning: --select requires either --plotprograms or --plotsignatures")
+  catn("Reading list of selected programs/signatures from", opt$options$select)
+  SelectNames = read.csv(opt$options$select, as.is = TRUE)
+  SelectNames = unlist(SelectNames)
+  if( doPlotPrograms || doPlotEnrichments ) {
+    XX = intersect(names(params$Programs), SelectNames)
+    params$Programs = params$Programs[XX]
+    params$Programs.Ref$avg = params$Programs.Ref$avg[XX]
+    params$Programs.Ref$var = params$Programs.Ref$var[XX]
+    params$Programs.Partition = lapply(params$Programs.Partition, function(x) intersect(x, SelectNames))
+  } 
+  if( doPlotSignatures ) {
+    XX = intersect(names(params$Signatures), SelectNames)
+    params$Signatures = params$Signatures[XX]
+    params$Signatures.Ref$avg = params$Signatures.Ref$avg[XX]
+    params$Signatures.Ref$var = params$Signatures.Ref$var[XX]
+  }
+}
+
 doExport = !is.null(opt$options$export)
 if(doExport ) {
   outputExport = outputFile(opt$options$export)
   RetainInMemory = TRUE
+}
+
+doExportNormCounts = !is.null(opt$options$ExportNormCounts)
+if(doExportNormCounts ) {
+  outputExport = outputFile(opt$options$ExportNormCounts)
+  RetainInMemory = TRUE
+  params$Normalize = TRUE
 }
 
 doQC = !is.null(opt$options$QC)
@@ -442,7 +616,8 @@ if( doMeta && is.null(params$MetaGene) )
   catn("Missing meta gene information")
 
 
-BaseFileName <- function( fname, extList = c(".bed$", ".rdata$", ".bw$", ".tagAlign$", "-H3K4me3") ) {
+BaseFileName <- function( fname, 
+                          extList = c(".gz$", ".bed$",".rdata$", ".bw$", ".tagAlign$", "-H3K4me3") ) {
 #  x = file_path_sans_ext(fname)
   x = fname
   for( ext in extList )
@@ -454,65 +629,92 @@ BaseFileName <- function( fname, extList = c(".bed$", ".rdata$", ".bw$", ".tagAl
   return(z)
 }
 
-ProcessBEDFile = function( BFile ) {
+ProcessBEDFile  = function( BFile ) {
+  if( grepl("^XXX", BFile))
+    return(NULL)
+  
   catn(BFile)
   if( !file.exists(BFile) && !file.exists(paste0(BFile,".bed")) && !file.exists(paste0(BFile,".tagAlign")) && !file.exists(paste0(BFile,".bw")) )
     BFile = paste0(BedDir, BFile)
   
   # catn(BFile)
   
-  dat = cfChIP.ProcessFile(filename = BFile, param = params, Force = doForce )
+  dat = cfChIP.ProcessFile(filename = BFile, param = params, Force = doForce, HardForce = doHardForce )
  
   if( doQC )
-    QC[[dat$Name]] <<- cfChIP.countQC(dat,GR = QC.bed, param= params)
+    QC[[dat$Name]] <<- cfChIP.countQC(dat, BFile, GR = QC.bed, param= params)
   
   if( doCluster )
     Cluster[[dat$Name]] <<- dat$GeneCounts.QQnorm
   
   if(doBackgroundPlot) {
     if( params$Verbose ) catn(dat$Name, ": Ploting background estimate")
-    cfChIP.BackgroundPlot(dat,Dir = OutputDir, Force = doForce)
+    cfChIP.BackgroundPlot(dat,Dir = OutputDir, Force = doWriteForce)
+  }
+  
+  if( doFragmentPlot ) {
+    if( params$Verbose ) catn(dat$Name, ": Ploting fragment lengths")
+    cfChIP.FragmentLenPlot(dat, Dir = OutputDir, Force = doWriteForce ) 
+  }
+  
+  if( doctDNA ) {
+    if( params$Verbose ) catn(dat$Name, ": Estimating ctDNA contribution")
+    cfChIP.EstimatectDNA(dat, Dir = OutputDir, Force = doWriteForce ) 
   }
   
   if(doOverExpressedGenes) {
     if( params$Verbose ) catn(dat$Name, ": Printing overexpressed genes")
-    cfChIP.OverExpressedGenes( dat, Dir = OutputDir, param = params, Force = doForce)
+    cfChIP.OverExpressedGenes( dat, Dir = OutputDir, param = params, Force = doWriteForce)
+    if( params$Verbose ) catn(dat$Name, ": Printing overexpressed windows")
+    cfChIP.OverExpressedWins( dat, Dir = OutputDir, param = params, Force = doWriteForce)
   }
   
   if( doMeta && !is.null(params$MetaGene) ) {
     if( params$Verbose ) catn(dat$Name, ": Ploting meta coverage")
-    cfChIP.MetaPlot(dat, Dir = MetaDIR, param = params, Force = doForce)
+    cfChIP.MetaPlot(dat, BFile, Dir = MetaDIR, param = params, Force = doWriteForce)
   }
   
   if( doTracks ) {
     if( params$Verbose ) catn(dat$Name, ": saving normalized tracks")
-    cfChIP.WriteTrack(dat, Dir = TracksDIR,  Force = doForce)
+    cfChIP.WriteTrack(dat,  BFile, params, Dir = TracksDIR,  Force = doWriteForce)
   }
   
   if( doSignatures ) {
     if( params$Verbose ) catn(dat$Name, ": Evaluating signatures")
-    cfChIP.EvaluateSignatures( dat, Dir = OutputDir, param = params, Write = TRUE,  Force = doForce )
+    cfChIP.EvaluateSignatures( dat, Dir = OutputDir, param = params, Write = TRUE,  Force = doWriteForce )
+  }
+  if( doSignaturesVsHealthy ) {
+    if( params$Verbose ) catn(dat$Name, ": Evaluating signatures vs Healthy")
+    cfChIP.EvaluateSignatures( dat, Dir = OutputDir, param = params,
+                               Write = TRUE,  Force = doWriteForce, WithReference = TRUE )
   }
   
   if( doPrograms ) {
     if( params$Verbose ) catn(dat$Name, ": Evaluating gene expression programs")
-    cfChIP.EvaluatePrograms( dat, Dir = OutputDir, param = params, Write = TRUE,  Force = doForce )
-    cfChIP.EvaluateProgramsHypG( dat, Dir = OutputDir, param = params, Write = TRUE,  Force = doForce )
+    cfChIP.EvaluatePrograms( dat, Dir = OutputDir, param = params, Write = TRUE, WithReference = TRUE, Force = doWriteForce )
+    cfChIP.EvaluateProgramsHypG( dat, Dir = OutputDir, param = params, Write = TRUE, Force = doWriteForce )
+  }
+  if( doSignaturesVsHealthy ) {
+    if( params$Verbose ) catn(dat$Name, ": Evaluating gene expression programs w/o healthy")
+    cfChIP.EvaluatePrograms( dat, Dir = OutputDir, param = params, Write = TRUE,  Force = doWriteForce, WithReference = FALSE )
+    cfChIP.EvaluateProgramsHypG( dat, Dir = OutputDir, param = params, Write = TRUE,  Force = doWriteForce)
   }
   
   if( doEnrichR ) {
     if( params$Verbose ) catn(dat$Name, ": Checking EnrichR")
-    cfChIP.WriteEnrichR( dat, Dir = OutputDir,  Force = doForce )
+    cfChIP.WriteEnrichR( dat, Dir = OutputDir,  Force = doWriteForce )
   }
   
-  
- 
   if( RetainInMemory ) {
     # get read of the coverage since it takes too much memory....
     if(!DevelopmentMode) {
       dat$Cov = NULL
       dat$BED = NULL
       dat$BW = NULL
+    }
+    if( doExportNormCounts ) {
+      dat$Counts = NULL
+      dat$GeneCounts = NULL
     }
     return(dat) 
   } else
@@ -527,8 +729,25 @@ ProcessBEDFileList = function( BFlist ) {
   L  
 }
 
+expandFiles = function(f) {
+  if( grepl(".txt$", f) | grepl(".csv$", f) ) {
+    if(!file.exists(f)) {
+      catn("Missing list file", f)
+      return(NULL)
+    }
+    catn("Reading sample list from",f)
+    File.list = read.table(f, as.is = TRUE)
+    File.list = File.list[,1]
+    names(File.list) = NULL
+    as.list(File.list)
+  } else
+    f
+}
 
-LL = ProcessBEDFileList(Files)
+FullFiles = unique(unlist(lapply(Files,expandFiles)))
+
+LL = ProcessBEDFileList(FullFiles)
+LL = LL[!sapply(LL, is.null)]
 
 if( doQC ) {
   catn("Writing QC numbers to ", outputQC)
@@ -562,6 +781,7 @@ if( RetainInMemory ) {
   if( doExport ) {
     catn("Exporting data in RDS format")
     dat = LL[[1]]
+ 
     dat$Cov = NULL
     if(!is.null(dat$Counts))
       dat$Counts = sapply(LL, function(l) l$Counts)
@@ -569,16 +789,34 @@ if( RetainInMemory ) {
       dat$Background = lapply(LL, function(l) l$Background)
     if(!is.null(dat$GeneCounts))
       dat$GeneCounts = sapply(LL, function(l) l$GeneCounts )
+    catn("QQnorm")
     if(!is.null(dat$QQNorm))
       dat$QQNorm = sapply(LL, function(l) l$QQNorm )
     if(!is.null(dat$OverExpressedGenes))
       dat$OverExpressedGenes = lapply(LL, function(l) l$OverExpressedGenes)
     if(!is.null(dat$GeneBackground))  
       dat$GeneBackground = sapply(LL, function(l) l$GeneBackground)
+    catn("GenesCounts.QQnorm")
     if(!is.null(dat$GenesCounts.QQnorm)) {
       # dat$GeneCounts.QQnorm = sapply(LL, function(l) l$GeneCounts.QQnorm )
       dat$GeneCounts.QQnorm = sapply(LL, function(l) l$GeneCounts.QQnorm[,1] )
     }
+    if(!is.null(dat$Counts.QQnorm)) 
+      dat$Counts.QQnorm = sapply(LL, function(l) l$Counts.QQnorm )
+    
+    saveRDS(dat, outputExport)
+  }
+  
+  if( doExportNormCounts ) {
+    catn("Exporting norm counts in RDS format")
+    dat = LL[[1]]
+
+    catn("GenesCounts.QQnorm")
+    if(!is.null(dat$GenesCounts.QQnorm)) {
+      # dat$GeneCounts.QQnorm = sapply(LL, function(l) l$GeneCounts.QQnorm )
+      dat$GeneCounts.QQnorm = sapply(LL, function(l) l$GeneCounts.QQnorm[,1] )
+    }
+    catn("Counts.QQnorm")
     if(!is.null(dat$Counts.QQnorm)) 
       dat$Counts.QQnorm = sapply(LL, function(l) l$Counts.QQnorm )
     
@@ -601,7 +839,7 @@ if( RetainInMemory ) {
   
   if( doWinCountsTable ) {
     if( params$Verbose ) catn("Writing WinCounts table to ", outputWinCountsTable)
-    WinCounts = do.call("cbind", lapply(LL, function(l) l$Counts))
+    WinCounts = do.call("cbind", lapply(LL, function(l) l$Counts.QQnorm))
     colnames(WinCounts) = sapply(LL, function(l) l$Name)
     write.csv(WinCounts,file = outputWinCountsTable, quote = FALSE)
   }
@@ -615,25 +853,40 @@ if( RetainInMemory ) {
   
   if( doConsensus ) {
     if( params$Verbose ) catn("Writing normalized consensus to ", outputConsensus)
+
+    WinCounts = do.call("cbind", lapply(LL, function(l) l$Counts))
+    WinBackground = do.call("cbind", lapply(LL, function(l)  l$WinBackground ))
+    QQnorm = sapply(LL, function(l) l$QQNorm)
+    names(QQnorm) = colnames(WinCounts)
+    
+    win.est = cfChIP.EstimateMeanVarianceBasis(WinCounts, WinBackground, QQnorm)
+    
     GeneCounts = do.call("cbind", lapply(LL, function(l) l$GeneCounts))
     GeneBackground = do.call("cbind", lapply(LL, function(l) l$GeneBackground))
-    colnames(GeneCounts) = sapply(LL, function(l) l$Name)
-    colnames(GeneBackground) = colnames(GeneCounts)
-    GeneDiff = GeneCounts - GeneBackground
-    GeneDiff[GeneDiff < 0] = 0
     
-    QQnorm = QQNormalizeGenes(GeneDiff, CommonG = CommonGenes )
-    for( i in 1:length(QQnorm) )
-      GeneDiff[,i] = GeneDiff[,i] * QQnorm[i]
+    gene.est = cfChIP.EstimateMeanVarianceBasis(GeneCounts, GeneBackground, QQnorm)
     
-    Avg = apply(GeneDiff,1,median)
-    Avg = Avg * 10**6 / sum(Avg)
-    
-    saveRDS(Avg, outputConsensus)
+    consensus = list(Win.avg = win.est$avg, Win.var = win.est$var, Gene.avg = gene.est$avg, Gene.var = gene.est$var)
+    saveRDS(consensus, outputConsensus)
+  }
+
+  if( doWinSignatureConsensus ) {
+   
+    if( params$Verbose ) catn("Writing normalized consensus of window signature ", outputWinSigConsensus)
+  
+    win.est = cfChIP.EstimateMeanVarianceWinSig(LL, Win.Sig)
+    saveRDS(win.est, outputWinSigConsensus )
   }
   
-  if( doPlotSignatures ) 
+  if( doGeneSignatureConsensus ) {
+    if( params$Verbose ) catn("Writing normalized consensus of gene signature ", outputGeneSigConsensus)
+    gene.est = cfChIP.EstimateMeanVarianceGeneSig(LL, Gene.Programs)
+    saveRDS(gene.est, outputGeneSigConsensus )
+  }
+    
+  if( doPlotSignatures ) {
     cfChIP.plotSignatures(LL, outputPlotSignatures, params)
+  }
   
   if( doPlotPrograms ) 
     cfChIP.plotPrograms(LL, outputPlotPrograms, params)

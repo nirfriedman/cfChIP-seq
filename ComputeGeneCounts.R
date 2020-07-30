@@ -14,6 +14,14 @@ ComputeGeneCounts = function (A, W2G = Win2Gene.matrix) {
   matrix(G, nr = dim(G)[1], nc = dim(G)[2], dimnames = dimnames(G))
 }
 
+MaxGeneCounts = function(A,W2G = Win2Gene.matrix) {
+  W2G.triplet = as(W2G, "TsparseMatrix")
+  W2G.lists = split(W2G.triplet@i+1, W2G.triplet@j+1)
+  X = sapply(W2G.lists, function(l) max(A[l]))
+  names(X) = colnames(W2G)
+  X
+}
+
 if( !exists("Win2Gene.matrix") ) {
   Win2Gene.Matrix.filename = paste0(SetupDIR,"Win2Gene.rds")
   print("Loading Window to Gene mapping")
@@ -24,8 +32,18 @@ if( !exists("Win2Gene.matrix") ) {
 #  colnames(Win2Gene.matrix)[is.na(colnames(Win2Gene.matrix))] = ""
   Genes = colnames(Win2Gene.matrix)
   GeneWindows = as.integer(rownames(Win2Gene.matrix))
+  
   W = width(TSS.windows[GeneWindows])/1000
   GeneLength = ComputeGeneCounts(W)
   names(GeneLength) = Genes
   rm(W)
+  
+  Win2Gene.triplet = as(Win2Gene.matrix, "TsparseMatrix")
+  Win2Gene.rows = Win2Gene.triplet@i +1
+  Win2Gene.cols = Win2Gene.triplet@j +1
+  Win2Gene.lists = split(Win2Gene.rows, Win2Gene.cols)
+  names(Win2Gene.lists) = Genes
+  rm(Win2Gene.cols)
+  rm(Win2Gene.rows)
+  rm(Win2Gene.triplet)
 }

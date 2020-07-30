@@ -1,27 +1,48 @@
+Genes2Win = function(G) {
+  n = length(G)
+  m = 1
+  nr = nrow(Win2Gene.matrix)
+  Ws = c()
+  while( m <= n ) {
+    m1 = min(n, m+500)
+    W = which(as.logical(Win2Gene.matrix[,G[m:m1]] != 0))
+    WW = data.frame(W %% nr, floor(W/nr)+1)
+    Ws = c(Ws,GeneWindows[WW[,1]])
+    m = m + 500
+  }
+  Ws
+}
 
 GenesBrowserWin = function(G) {
 #  WW = which( as.logical(Win2Gene.matrix[,G] != 0), arr.ind = TRUE )
 #  WW[,1] = as.numeric(rownames(WW))
  
+  GW = rep("", length(G))
+  n = length(G)
+  m = 1
   nr = nrow(Win2Gene.matrix)
-  W = which(as.logical(Win2Gene.matrix[,G] != 0))
-  WW = data.frame(W %% nr, floor(W/nr)+1)
-  S = split(WW[,1], WW[,2])
-  names(S) = G
-  Is = sapply(S, min)
-  Js = sapply(S, max)
-  St = start(TSS.windows[Is])-10000
-  St[St < 0] = 0
-  En =  end(TSS.windows[Js])+10000
-  paste0(chrom(TSS.windows[Is]),":", St,"-", En)
+  while( m <= n ) {
+    m1 = min(n, m+500)
+    W = which(as.logical(Win2Gene.matrix[,G[m:m1]] != 0))
+    WW = data.frame(W %% nr, floor(W/nr)+1)
+    S = split(WW[,1], WW[,2])
+    names(S) = G[m:m1]
+    Is = GeneWindows[sapply(S, min)]
+    Js = GeneWindows[sapply(S, max)]
+    St = start(TSS.windows[Is])-10000
+    St[St < 0] = 0
+    En =  end(TSS.windows[Js])+10000
+    GW[m:m1] = paste0(chrom(TSS.windows[Is]),":", St,"-", En)
+    m = m + 500
+  }
+  GW
 }
 
 
 WinsBrowserWin = function(W) {
-  sapply(W,
-         function(w) {
-           paste0(chrom(TSS.windows[w]), ":", max(0,start(TSS.windows[w])-10000), "-", end(TSS.windows[w])+10000)
-         })
+  W = as.numeric(W)
+  paste0(chrom(TSS.windows[W]), ":", pmax(0,start(TSS.windows[W])-10000), "-", 
+         end(TSS.windows[W])+10000)
 }
 
 GRBrowserWin = function(GR) {
@@ -47,8 +68,8 @@ ArraySubColumns = function(A, Cs, f = "mean") {
 GenesIncreasedPVal = function(G,s) {
   Y = GeneCounts[G,s]
   Lam = HealthyNormAvg[G] / QQNorm[s] + GeneBackground[G,s] 
-  Pv = ppois(Y,Lam, lower.tail = FALSE, log.p = T)
-  pvalue = -ppois(sum(Y), sum(Lam),  lower.tail = FALSE, log.p = T)
+  Pv = ppois(Y-1,Lam, lower.tail = FALSE, log.p = T)
+  pvalue = -ppois(sum(Y)-1, sum(Lam),  lower.tail = FALSE, log.p = T)
   list( pvalue = pvalue, PVals = Pv, Obs = Y, Exp = Lam)
 }
 

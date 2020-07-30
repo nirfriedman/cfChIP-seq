@@ -64,6 +64,8 @@ if( !exists("Background.Regions")) {
   rm(L)
 }
 
+
+Background.Ind.Strech = 
 Background.windows = TSS.windows$type == "background" & width(TSS.windows) > 4000
 
 Background.windows.width = 5
@@ -156,11 +158,106 @@ sigBackgroundParallel = function(sig, B = Background) {
   }
 }
 
-computePValue = function( Fg, Bg, method = "Poisson", Quantile = 0.1 ) {
+
+#
+# Test significance of the observation being Above (or below) the expectation. 
+#
+# Obs - real counts (integer)
+# Bg - background rate
+# Exp.mean and Exp.sd - mean and variance of expectation (in normalized units)
+# Scale - scale from normalized units to observations (1/Qnorm)
+# Above = TRUE if testing for value above expected, FALSE if testing for below
+computePValue = function(Obs, Bg, Exp.mean = NULL, Exp.var = NULL, Scale = 1, Above = TRUE) {
+  obs = sum(Obs)
   bg = sum(Bg)
-  fg = sum(Fg)
-  return(c( pv = ppois(fg,bg,lower.tail = FALSE, log.p = TRUE), obs = fg, bg = bg ))
+  if( is.null(Exp.mean) ) {
+    exp.mean = 0
+  } else
+    exp.mean = sum(Exp.mean)
+  
+  if( is.null(Exp.var)) {
+    exp.var = 0
+  } else
+    exp.var = sum(Exp.var)
+  
+  names(Scale) = NULL
+  nb.mean = Scale*exp.mean+bg
+  nb.var = exp.var*(Scale**2)+nb.mean
+  if( exp.var > 0 ) {
+    nb.size = (nb.mean**2) /((Scale**2)*exp.var)
+    pval = pnbinom(obs - 1*Above, size = nb.size, mu = nb.mean, lower.tail = !Above, log.p = TRUE)
+  } else {
+    pval = ppois(obs - 1*Above, nb.mean, lower.tail = !Above, log.p = TRUE)    
+  }
+  c(pv = pval, 
+    obs = obs, 
+    bg = bg, 
+    lambda = nb.mean,  
+    exp = exp.mean, 
+    exp.var = exp.var, 
+    scale = Scale,
+    zscore = (obs-nb.mean)/sqrt(nb.var)
+  )
 }
+
+computePValue0 = function(Obs, Bg) {
+  obs = sum(Obs)
+  bg = sum(Bg)
+  pval = ppois(obs-1, bg, lower.tail = FALSE, log.p = TRUE)    
+
+  c(pv = pval, 
+    obs = obs, 
+    bg = bg, 
+    lambda = bg,  
+    exp = 0, 
+    exp.var = 0, 
+    scale = 1,
+    zscore = (obs-bg)/sqrt(bg)
+  )
+}
+
+
+computeMultiPValue1 = function(obs, bg, exp.mean = NULL, exp.var = NULL, Scale = 1, Above = TRUE) {
+  if( is.null(exp.mean) ) 
+    exp.mean = 0
+  if( is.null(exp.var)) 
+    exp.var = 0
+  nb.mean = Scale*exp.mean+bg
+  nb.var = exp.var*(Scale**2)+nb.mean
+  nb.size = (nb.mean**2) /((Scale**2)*exp.var)
+  pvals = ppois(obs-1*Above, nb.mean, lower.tail = !Above, log.p = TRUE)   
+  
+  I = is.finite(nb.size)
+  if( any(I) )
+    pvals[I] =  pnbinom(obs[I]-1*Above, size = nb.size[I], mu = nb.mean[I], lower.tail = !Above, log.p = TRUE)
+  
+  rbind(pv = pvals, 
+        obs = obs, 
+        bg = bg, 
+        lambda = nb.mean,  
+        nb.var = nb.var,
+        exp = exp.mean, 
+        exp.var = exp.var, 
+        scale = Scale,
+        zscore = (obs-nb.mean)/sqrt(nb.var))
+}
+
+computeMultiPValue = function(obs, bg, exp.mean = NULL, exp.var = NULL, Scale = 1, Above = TRUE) {
+  if( is.null(exp.mean) ) 
+    exp.mean = 0
+  if( is.null(exp.var)) 
+    exp.var = 0
+  nb.mean = Scale*exp.mean+bg
+  nb.size = (nb.mean**2) /((Scale**2)*exp.var)
+  pvals = ppois(obs-1*Above, nb.mean, lower.tail = !Above, log.p = TRUE)   
+
+  I = is.finite(nb.size)
+  if( any(I) )
+    pvals[I] =  pnbinom(obs[I]-1*Above, size = nb.size[I], mu = nb.mean[I], lower.tail = !Above, log.p = TRUE)
+  
+  return(pvals)
+}
+
 
 getPotentionalWin = function(s, W = WINS, Bwindows = Background.windows ) {
   Y = W[,s]
@@ -212,27 +309,36 @@ ChrEnd = cumsum(seqlengths(genome.seqinfo)[ChrList]/1e+6)
 ChrStart = c(0, ChrEnd[1:(length(ChrList)-1)])
 names(ChrStart) = ChrList
 
-plotBackground = function( mu ) {
-  Ws = seq(1,length(TSS.windows),by=round(length(TSS.windows)/1000))
+plotBackground = function( mu, 
+                           PlotInd = TRUE, 
+                           PlotRegion = TRUE, 
+                           PlotGenome = TRUE, 
+                           PlotChr = TRUE ) {
+  Ws = seq(1,length(TSS.windows),by=round(length(TSS.windows)/500))
   Xs = start(TSS.windows[Ws])/1e+6 + ChrStart[WinChr[Ws]]
   Ls = (width(TSS.windows[Ws])+Edge.Penalty)/1000
-  Z = sapply(Ws, function(w) getBackground(mu, w))
+#  Z = sapply(Ws, function(w) getBackground(mu, w))
+  Z = getMultiBackground(mu, Ws)
   Z = t(t(Z)/Ls)
   p = ggplot(data.frame(x=Xs, 
                         Ind = Z[1,],
                         Region = Z[2,],
                         Chr = Z[3,], 
                         Genome = Z[4,]))+theme_bw()
-  p = p+geom_point(aes(x=x,y=Ind),color="light blue",size=0.2)
-  p = p+geom_line(aes(x=x,y=Region),color="blue",size=0.2)
-  p = p+geom_line(aes(x=x,y=Chr), color="black" ,size=.5)
-  p = p+geom_line(aes(x=x,y=Genome), color="dark gray" ,size=1)
+  if( PlotInd )
+    p = p+geom_point(aes(x=x,y=Ind),color="light blue",size=0.2)
+  if( PlotRegion )
+    p = p+geom_line(aes(x=x,y=Region),color="blue",size=0.2)
+  if( PlotChr )
+    p = p+geom_line(aes(x=x,y=Chr), color="black" ,size=.5)
+  if( PlotGenome )
+    p = p+geom_line(aes(x=x,y=Genome), color="dark gray" ,size=1)
 #  p = p + ggtitle(s)
   YMax = quantile(Z, 0.99, na.rm = TRUE)*1.1
   p = p+ylim(c(0,YMax))
   p = p+geom_segment(data=data.frame(x = c(0, ChrEnd)),
                      aes(x=x,xend = x, y=0, yend=YMax),
-                     color="red", size=0.5)
+                     color="gray30", size=0.5)
   p = p+scale_x_continuous(breaks=(ChrStart+ChrEnd)/2, labels = gsub("chr", "", ChrList))
   p = p+labs(x = "Chromosome", y = "reads/KB")
   p

@@ -1,4 +1,5 @@
 require(preprocessCore)
+library(MASS)
 
 QQNormalizeGenes = function(GeneDiff, CommonG = CommonGenes) {
   CommonGenes = CommonG
@@ -10,7 +11,8 @@ QQNormalizeGenes = function(GeneDiff, CommonG = CommonGenes) {
   QQNorm = sapply(colnames(GeneDiff), function(s){
     X = GeneCounts.CommonGenes[,s]
     Y = GeneCounts.CommonGenes.qq[,s]
-    coef(lm(Y~X-1))
+    tryCatch(coef(rlm(Y~X-1)), 
+             error = function(e) coef(lm(Y~X-1)))
   })
   
   names(QQNorm) = colnames(GeneDiff)

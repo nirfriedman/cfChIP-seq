@@ -28,10 +28,7 @@ if( exists("GeneCounts")) {
   GeneDiff[GeneDiff < 0] = 0
   
   logGeneCounts.raw = log2(GeneCounts.QQnorm+1)
-  
-  Genes.notexcluded = !(rownames(GeneCounts.QQnorm) %in% rownames(GeneCounts)[which(Genes.excluded)])
-} else
-  Genes.notexcluded = !Genes.excluded
+}
 
 HealthyNormAvg = Healthy.GeneCount
 HealthyNormAvg.log = log2(HealthyNormAvg)
@@ -69,3 +66,4 @@ if( file.exists(GeneDescription.filename) ) {
   GeneDescription=GeneDescription[,-1]
   GeneDescription$Description = gsub(",",";",GeneDescription$Description)
 }
+
