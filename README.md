@@ -2,6 +2,10 @@
 
 This are the scripts to process cfChIP-seq results.
 
+The files were run on R vs 4.0
+
+List of packages needed: optparse, Biobase, MASS, Matrix, NMF, RColorBrewer, cba, cowplot, ctc, ggforce, ggplot2, preprocessCore, reshape2, rtracklayer, tools
+
 
 There are two directory structures that are needed for the analysis to run.
 
@@ -51,12 +55,12 @@ Options include commands for the analysis. See
 
 Rscript --vanilla <SRCDIR>/ProcessBEDFiles.R --help
 
-In all cases, the procedure searches for the samples either in
+In all cases, the procedure searches for the samples in this order:
 
    <ROOT>/Samples/<mod>/<SampleName>.rds  (sample already processed by ProcessBEDFiles.R)
-
-or 
-
    <ROOT>/BED/<mod><SampleName>.bed  (bed file)
+   <ROOT>/BED/<mod><SampleName>.bed.gz  (compressed bed file)
+   
+   
 
 
