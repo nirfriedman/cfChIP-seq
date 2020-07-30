@@ -7,7 +7,7 @@ The files were run on R vs 4.0
 List of packages needed: optparse, Biobase, MASS, Matrix, NMF, RColorBrewer, cba, cowplot, ctc, ggforce, ggplot2, preprocessCore, reshape2, rtracklayer, tools
 
 
-There are two directory structures that are needed for the analysis to run.
+There are two directory structures that are needed for the analysis to run. You can find download them from the Zenodo repository DOI:10.5281/zenodo.3967254
 
 First, in the same directory as the scripts, there should be directory called SetupFiles. For each modification there should be a directory:
 
@@ -61,6 +61,9 @@ In all cases, the procedure searches for the samples in this order:
    <ROOT>/BED/<mod><SampleName>.bed  (bed file)
    <ROOT>/BED/<mod><SampleName>.bed.gz  (compressed bed file)
    
-   
+
+The Analysis file in the above repository is already populated with the BED files we used in our publication. Running do.sh will perform all analysis on all files (it will take a while).
+
+
 
 
