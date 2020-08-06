@@ -33,9 +33,6 @@ BackgroundModel.rds	    - R file with details of windows used in estimating back
 Win2Gene.rds		    - R file with mapping of genes to specific windows
 
 
-You can download the neccessary files for the modifications used in the paper from https://cs.huji.ac.il/~gf861913/cfChIP-seq/SetupFiles/. They are too large to load to github.
-
-
 The second directory structure is used for results. The base of the structure is called <ROOT> and can be given in the command line.
 
 The structure is then a directory tree with the names as follows:
