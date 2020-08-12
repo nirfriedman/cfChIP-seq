@@ -3,9 +3,11 @@ source(paste0(SourceDIR, "QQNormalize.R"))
 source(paste0(SourceDIR, "MetaPlot.R")) 
 source(paste0(SourceDIR,"cfChIP-util.R"))
 source(paste0(SourceDIR, "PlotPVal.R"))
-source(paste0(SourceDIR, "EstimateGammaPoisson.R"))
 source(paste0(SourceDIR, "YieldEstimation-Functions.R"))
+source(paste0(SourceDIR, "EstimateGammaPoisson.R"))
 source(paste0(SourceDIR, "NMF-util.R"))
+
+#source(paste0(SourceDIR, "Estimate-ctDNA.R"))
 
 mem.maxVSize(vsize = Inf)
 
@@ -225,6 +227,11 @@ cfChIP.ComputeOverExpressed = function(X.norm, Counts, BG, NormRef, NormRef.var,
   Pv = pmax(Pv.up,Pv.down) - log(2)
   Qv = -log10(p.adjust(exp(-Pv),method="fdr"))
   
+  if(!is.null(NormRef.var))
+    Zscore =  (Y - Lam)/sqrt(NormRef.var/(QQNorm**2) + Lam)
+  else
+    Zscore = NA
+  
   data.frame(healthy = logH, 
              sample = logX, 
              obs = Y, 
@@ -235,7 +242,7 @@ cfChIP.ComputeOverExpressed = function(X.norm, Counts, BG, NormRef, NormRef.var,
              H = NormRef, 
              Significant.up = (Qv > 3 & ((logX-logH > 1) & (Y > Lam))),
              Significant.down = (Qv > 3 & ((logX-logH < -1) & (Y < Lam)) ),
-             Zscore =  (Y - Lam)/sqrt(NormRef.var/(QQNorm**2) + Lam),
+             Zscore = Zscore,
              stringsAsFactors = FALSE)
 }
 
@@ -979,6 +986,16 @@ cfChIP.OverExpressedScatter = function(df, fname2,
   
   
   mVal = t.round*ceiling(max(quantile(df$H,t.up),quantile(df$X, t.up))/t.round)
+  
+  # to fix annnoying bug!
+  # 
+  if( quantile(df$X, 0.25) == quantile(df$X, 0.5) ) {
+    df$X = df$X + runif(length(df$X), min = -0.01, max = 0.01)
+  }
+  if( quantile(df$H, 0.25) == quantile(df$H, 0.5) ) {
+    df$H = df$H + runif(length(df$H), min = -0.01, max = 0.01)
+  }
+  
   p = ggplot(df, aes(x=H, y=X, color=qvalue)) 
   p = p+labs( x = xlabel, y = Name)
   p = p + coord_fixed(ratio=1,xlim=c(0,mVal), ylim=c(0,mVal))
@@ -1012,7 +1029,8 @@ cfChIP.OverExpressedScatter = function(df, fname2,
     p = p+geom_point(data=df[!is.na(df$program),], aes(size = significant, color = program)) 
     p = p + scale_size_discrete(range = c(.75,1.5), labels=c("", "significant"))
     p = p + scale_color_brewer(palette = "Set1")
-  }  else {
+  }  else 
+    if( sum(Significant) > 1 ) {
     p = p+geom_point(size=.5, data=df[Significant,])
     p = p+scale_color_gradient(high="red", low="gray30", limits=c(3,Max.Qv), na.value = "black", name="Q-value\n(-log10)" )
   }
