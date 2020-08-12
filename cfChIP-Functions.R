@@ -4,6 +4,7 @@ source(paste0(SourceDIR, "MetaPlot.R"))
 source(paste0(SourceDIR,"cfChIP-util.R"))
 source(paste0(SourceDIR, "PlotPVal.R"))
 source(paste0(SourceDIR, "EstimateGammaPoisson.R"))
+source(paste0(SourceDIR, "YieldEstimation-Functions.R"))
 source(paste0(SourceDIR, "NMF-util.R"))
 
 mem.maxVSize(vsize = Inf)

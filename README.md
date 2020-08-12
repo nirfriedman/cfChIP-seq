@@ -59,7 +59,11 @@ In all cases, the procedure searches for the samples in this order:
    <ROOT>/BED/<mod><SampleName>.bed.gz  (compressed bed file)
    
 
-The Analysis file in the above repository is already populated with the BED files we used in our publication. Running do.sh will perform all analysis on all files (it will take a while).
+The Analysis file in the above repository is already populated with the BED files we used in our publication. Running do.sh will perform all analysis on all files (it will take a while).  In addition doQC.sh will generate basic QC of the BED files.
+
+*Note: Before running edit do.sh to set SRCDIR to match you local installation.*
+
+
 
 
 
