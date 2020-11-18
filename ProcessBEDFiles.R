@@ -25,6 +25,7 @@ if( !any(grepl("--interactive", initial.options)) ) {
   # It is highly recommended to reset the environment ("Clear Objects" in RStudio) prior to running
   #
   
+  
   DevelopmentMode = TRUE
   Mod = "H3K4me3/"
   SourceDIR = "~/BloodChIP/Src/"
@@ -32,6 +33,39 @@ if( !any(grepl("--interactive", initial.options)) ) {
   trailing.options = paste(
     "-r ~/BloodChIP/Data/Analysis-Paper",
     "-p ~/BloodChIP/Data/Analysis-Paper",
+    "-o",  "~/BloodChIP/Data/Analysis-Paper/Figures/Liver/",
+    "--plotprograms=IHEC-sig",
+    paste0("--geneprograms=",
+           "~/BloodChIP/Data/Atlases/Programs/MSigDB-curated.csv",
+           ",",
+           "~/BloodChIP/Data/Analysis-Paper/Figures/BLUEprint/BLUEprint-RNA-sig.csv"
+    ),
+    "--select=~/BloodChIP/Data/Analysis-Paper/Figures/Liver/Select-example.txt",
+    "L001.1 M002.1 L010.1 L011.1 H001.1 H002.1 H003.1 H004.1",
+    
+#    "--writeforce",
+#    "--plotprograms=Fig5E-prog",
+#    paste0("--select=",
+#           "~/BloodChIP/Data/Analysis-Paper/Figures/Pathways/Select-programs.csv"),
+#    "-o", "~/BloodChIP/Data/Analysis-Paper/Figures/Pathways",
+#    paste0("--geneprograms=", 
+#           "~/BloodChIP/Data/Atlases/Programs/MSigDB-curated-small.csv"
+           #"~/BloodChIP/Data/Analysis-Paper/Figures/BLUEprint/BLUEprint-RNA-sig.csv",
+           #",",
+           #"~/BloodChIP/Data/Analysis-Paper/Figures/CRC/TCGA_CMS-gene-sig.csv",
+           #",",
+           #"~/BloodChIP/Data/Analysis-Paper/Figures/CRC/CancerGroups-Sig.csv",
+           #",",
+           #"~/BloodChIP/Data/Analysis-Paper/Figures/CRC/ColonClassifier-crca786.csv",
+           #",",
+           #"~/BloodChIP/Data/Analysis-Paper/Figures/CRC/ColonClassifier-CRIS.csv",
+          #  ""           
+#           ),
+#    paste0("--geneconsensus=",
+#           "~/BloodChIP/Data/Analysis-Paper/Figures/BLUEprint/BLUEprint-RNA-sig.rds"),
+#    "~/BloodChIP/Data/Analysis-Paper/Samples-Healthy-reference-cohort.txt",
+#    "H001.1", "M002.1", "M001.1", "C001.2746", "C001.2752", "C040.3606",
+#      "~/BloodChIP/Data/Analysis-Paper/Figures/Samples-Fig5E.txt",
    "" 
   )
   trailing.options = strsplit(trailing.options, " ")[[1]]
@@ -314,6 +348,7 @@ ReadSignatureList = function(Sig.filename, type = "signature") {
   source(paste0(SourceDIR,"CommonGenes.R"))
   Genes.notexcluded = Genes[!Genes.excluded]
   source(paste0(SourceDIR, "cfChIP-Functions.R"))  
+  source(paste0(SourceDIR, "YieldEstimation-Functions.R"))
 
   GenePrograms.filename =  paste0(SetupDIR, "Gene-sig.csv")
   Gene.Programs = NULL
@@ -355,6 +390,10 @@ ReadSignatureList = function(Sig.filename, type = "signature") {
     GeneDescription=GeneDescription[,-1]
     GeneDescription$Description = gsub(",",";",GeneDescription$Description)
   }
+  WinDescription = mcols(TSS.windows)
+  colnames(WinDescription) = sapply(colnames(WinDescription), function(x) paste0(toupper(substr(x,1,1)), substr(x,2,width(x))))
+  colnames(WinDescription) = sub("Name", "Gene", colnames(WinDescription))
+  rownames(WinDescription) = 1:length(TSS.windows)
   
   QC.filename = paste0(SetupDIR,"QC.bed")
   QC.bed = TSS.windows
@@ -633,11 +672,16 @@ ProcessBEDFile  = function( BFile ) {
   if( grepl("^XXX", BFile))
     return(NULL)
   
-  catn(BFile)
-  if( !file.exists(BFile) && !file.exists(paste0(BFile,".bed")) && !file.exists(paste0(BFile,".tagAlign")) && !file.exists(paste0(BFile,".bw")) )
+  #catn(BFile)
+  if( !file.exists(BFile) &&
+      !file.exists(paste0(BFile,".bed")) &&
+      !file.exists(paste0(BFile,".tagAlign")) && 
+      !file.exists(paste0(BFile,".bw")) &&
+      !file.exists(paste0(BFile,".bed.gz")) &&
+      !file.exists(paste0(BFile,".tagAlign.gz")) )
     BFile = paste0(BedDir, BFile)
   
-  # catn(BFile)
+  catn(BFile)
   
   dat = cfChIP.ProcessFile(filename = BFile, param = params, Force = doForce, HardForce = doHardForce )
  

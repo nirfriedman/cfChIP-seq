@@ -67,6 +67,7 @@ cfChIP.Params <- function() {
     Heatmap.Filter.threshold = 6,
     PlotPrograms.GlobalHeatmap = TRUE,
     Programs.Eval.Reference = TRUE,
+    Signatures.Eval.Reference = FALSE,
     Heatmap.Detailed.Type = "plain",
     Heatmap.Detailed.Prune.Cols = FALSE,
     Heatmap.Detailed.Prune.Rows = FALSE,
@@ -151,12 +152,17 @@ cfChIP.BuildFN <- function(Name, param, suff = ".rdata" ) {
   paste0(f, Name, suff)
 }
 
+cfChIP.BED.suffixes = c(".bed", ".bed.gz", ".tagAlign", ".tagAlign.gz")
+cfChIP.BW.suffixes = c(".bw", ".bigWig", ".bw.gz", ".bigWig.gz")
+cfChIP.File.suffixes = c(cfChIP.BED.suffixes, cfChIP.BW.suffixes)
+
 cfChIP.FindFile <- function( filename, param = cfChIP.Params() ) {
   FileType  = NA
-  BED.suffixes = c(".bed", ".bed.gz", ".tagAlign", ".tagAlign.gz")
+  BED.suffixes = cfChIP.BED.suffixes
+  BW.suffixes = cfChIP.BW.suffixes
   if( any(sapply(BED.suffixes, function(s) grepl(paste0(s,"$"), filename))))
     FileType = "BED"
-  if( grepl(".bw$|bigWig$", filename) )
+  if(  any(sapply(BW.suffixes, function(s) grepl(paste0(s,"$"), filename))))
     FileType = "BW"
   
   if( is.na(FileType) ) {
@@ -165,10 +171,12 @@ cfChIP.FindFile <- function( filename, param = cfChIP.Params() ) {
         filename = paste0(filename, s)
         FileType = "BED"
       } 
-    if( is.na(FileType) && file.exists(paste0(filename, ".bw"))) {
-      filename = paste0(filename, ".bw") 
-      FileType = "BW"
-    }   
+    if( is.na(FileType) ) 
+      for( s in BW.suffixes )
+        if( file.exists(paste0(filename, s))) {
+          filename = paste0(filename, s)
+          FileType = "BW"
+        } 
   }
   
   if( is.na(FileType ) ) {
@@ -179,10 +187,19 @@ cfChIP.FindFile <- function( filename, param = cfChIP.Params() ) {
   return(list(filename = filename, FileType = FileType))
 }
 
+cfChIP.RawData.Cache = list()
+cfChIP.RawData.CacheMaxSize = 100
+
 cfChIP.GetRawData = function(filename, param = cfChIP.Params) {
   ll = cfChIP.FindFile(filename, param)
   filename = ll$filename
   FileType = ll$FileType
+
+  if( filename %in% cfChIP.RawData.Cache )  
+    return(cfChIP.RawData.Cache[[filename]])
+  
+  if( length(cfChIP.RawData.Cache) >= cfChIP.RawData.CacheMaxSize )
+    cfChIP.RawData.Cache <<- list()
   
   dat = list()
   if( FileType == "BED") {     
@@ -205,6 +222,8 @@ cfChIP.GetRawData = function(filename, param = cfChIP.Params) {
     dat$BW = import(filename)
     dat$Cov = coverage(dat$BW, weight="score")
   } 
+  cfChIP.RawData.Cache[[filename]] <<- dat
+  
   return(dat)
 }
 
@@ -332,7 +351,7 @@ cfChIP.ProcessFile <- function( filename = NULL,
     if(!is.null(dat$BED)) {
       if( param$Verbose ) catn(Name, ": counting fragment overlap")
       dat$Counts = countOverlaps(query = param$TSS.windows, 
-                                 subject = resize(dat$BED, width=100, fix="center"))
+                                 subject = resize(dat$BED, width=1, fix="center"))
     } else
       if( !is.null(dat$BW)) {
         if( param$Verbose ) catn(Name, ": counting BigWig overlap")
@@ -619,8 +638,8 @@ cfChIP.EvalSigWithReference = function(sig, dat, Exp.mean, Exp.var = 0) {
   Fg = dat$Counts[sig]
   
   Scale = 1/dat$QQNorm
-  pvAbove = computePValue(Fg, Bg, exp.mean = Exp.mean, exp.var = Exp.var, Scale = Scale )
-  pvBelow = computePValue(Fg, Bg, exp.mean = Exp.mean, exp.var = Exp.var, Scale = Scale, Above = FALSE )
+  pvAbove = computePValue(Fg, Bg, Exp.mean = Exp.mean, Exp.var = Exp.var, Scale = Scale )
+  pvBelow = computePValue(Fg, Bg, Exp.mean = Exp.mean, Exp.var = Exp.var, Scale = Scale, Above = FALSE )
   xx = c(pvAbove, c(pv.above = as.numeric(pvAbove["pv"]), pv.below = as.numeric(pvBelow["pv"])))
   xx["pv"] = twoTailedPValue(pvAbove["pv"], pvBelow["pv"])
   xx
@@ -682,6 +701,10 @@ CollateSigEvals = function(Evals, WithReference, Sig.Width, QQNorm) {
   Fg = sapply(names(Evals),function(s) Evals[[s]]["obs"])
   Bg = sapply(names(Evals),function(s) Evals[[s]]["bg"])
   Zscores = sapply(names(Evals),function(s) Evals[[s]]["zscore"])
+  Confs = t(sapply(names(Evals), 
+                 function(s) EstimateNormalizedPoissonConfidenceInterval(Evals[[s]]["obs"],
+                                                                         Evals[[s]]["bg"],
+                                                                         QQNorm)))
   names(Fg) = names(Evals)
   names(Bg) = names(Evals)
   names(Zscores) = names(Evals)
@@ -700,11 +723,15 @@ CollateSigEvals = function(Evals, WithReference, Sig.Width, QQNorm) {
  
   Counts.norms = t(t(Counts.norms) / Sig.Width)
   Exp.norm = t(t(Exp)/Sig.Width)
+  Confs[,1] = Confs[,1]/Sig.Width
+  Confs[,2] = Confs[,2]/Sig.Width
   
   if( WithReference ) {
     df = data.frame(ObservedCounts = Fg, 
                     Background = formatC(Bg), 
                     NormalizedCounts = formatC(Counts.norms),
+                    NormalizedCounts.lower = formatC(Confs[,1]),
+                    NormalizedCounts.upper = formatC(Confs[,2]),
                     NormalizedExp = formatC(Exp.norm),
                     pValue = formatC(PVals/log(10)), 
                     pValue.above = formatC(PVals.above/log(10)), 
@@ -716,6 +743,8 @@ CollateSigEvals = function(Evals, WithReference, Sig.Width, QQNorm) {
     df = data.frame(ObservedCounts = Fg, 
                     Background = formatC(Bg), 
                     NormalizedCounts = formatC(Counts.norms),
+                    NormalizedCounts.lower = formatC(Confs[,1]),
+                    NormalizedCounts.upper = formatC(Confs[,2]),
                     pValue = formatC(PVals/log(10)), 
                     qValue = formatC(QVals),
                     zscore = formatC(Zscores),
@@ -911,8 +940,12 @@ cfChIP.OverExpressedGenes = function( dat, Dir = NULL, param = cfChIP.Params(), 
 }
 }
 
-cfChIP.WriteOverExpressed = function(O, fname, Description = NULL, NotExcluded = NULL, 
-                                     BrowserFun = NULL) {
+cfChIP.WriteOverExpressed = function(O, fname, 
+                                     Description = NULL, 
+                                     NotExcluded = NULL, 
+                                     BrowserFun = NULL,
+                                     ObsName = "Observed",
+                                     RefName = "Healthy") {
   O = O[(O$Significant.down|O$Significant.up ),]
   if( nrow(O) > 1 && !is.null(NotExcluded) )
     O = O[rownames(O) %in% NotExcluded,]
@@ -926,14 +959,14 @@ cfChIP.WriteOverExpressed = function(O, fname, Description = NULL, NotExcluded =
     } 
     # fill in missing columns
     for(n in c("Description", "Tissue", "GTEX.HighExpressed", 
-               "GTEX.Expressed", "Suspect", "Type", "Gene") )
+               "GTEX.Expressed", "Suspect", "Type", "Gene", "Name") )
       if( !(n %in% colnames(O)))
         O[,n] = ""
 
     if( !is.null(BrowserFun) ) {
        BrowserWin = do.call(BrowserFun,list(rownames(O)))
     } else
-      BrowserWin = ""
+      BrowserWin = c()
     
     df = data.frame(Obs = O$X, 
                     Ref = O$H, 
@@ -945,14 +978,15 @@ cfChIP.WriteOverExpressed = function(O, fname, Description = NULL, NotExcluded =
                     Suspect = O$Suspect,
                     Type = O$Type,
                     Gene = O$Gene,
+                    Name = O$Name,
                     Browser=BrowserWin,
                     Description = O$Description, 
                     stringsAsFactors = FALSE)
     rownames(df) = rownames(O)
     df = df[order(df$FoldChange, decreasing = TRUE),]
-    colnames(df) =  c("Observed", "Healthy", "FoldChange (log2)", "p-Value (-log10)",  "Q-Value (-log10)", 
+    colnames(df) =  c(ObsName, RefName, "FoldChange (log2)", "p-Value (-log10)",  "Q-Value (-log10)", 
                       "Tissue (Atlas)", "High Expressed (GTEX)", "Expressed (GTEX)",
-                      "Suspect?","Type","Gene(s)", "Browser window", "Description")
+                      "Suspect?","Type","Gene(s)", "Name", "Browser window", "Description")
     SelectCol = sapply(colnames(df), function(n) any(df[,n] != "", na.rm = TRUE))
     df = df[,SelectCol]
     for(n in colnames(df))
@@ -1111,6 +1145,7 @@ cfChIP.OverExpressedWins = function( dat, Dir = NULL, param = cfChIP.Params(), F
     
     cfChIP.WriteOverExpressed(dat$OverExpressedWins, 
                               fname,  
+                              Description = WinDescription,
                               NotExcluded = Win.notexcluded.name, 
                               BrowserFun = WinsBrowserWin )
       
@@ -1206,7 +1241,9 @@ cfChIP.plotSignatures = function(LL, outputPlotSignatures, param= cfChIP.Params(
                                  DetailedPlots = FALSE ) {
   if( param$Verbose ) catn("Evaluating signatures to ", outputPlotSignatures)
   
-  EE = lapply(LL, function(dat) cfChIP.EvaluateSignatures(dat, param = param, Write = FALSE) )
+  EE = lapply(LL, function(dat) cfChIP.EvaluateSignatures(dat, param = param, 
+                                                          Write = FALSE,
+                                                          WithReference = as.logical(param$Signatures.Eval.Reference)))
   
   PVals = do.call(rbind, lapply(EE, function(e) as.numeric(as.character(e$pValue))))
   Zscores = do.call(rbind, lapply(EE, function(e) as.numeric(as.character(e$zscore))))
@@ -1343,7 +1380,7 @@ cfChIP.plotPrograms = function(LL,
                  Q.val.threshold = as.numeric(param$Heatmap.Qvalue.threshold),
                  colOrder = "cluster" )
         )
-      o.c = unlist(sapply(l.list, function(ll) colnames(ll$PVals)))
+      o.c = unlist(sapply(l.list, function(ll) colnames(ll$QVals)))
       l = plotPVal(PVals[,o.c], Counts.norms[,o.c],  
                    max.Count = as.numeric(param$PlotPrograms.MaxCount),
                    MapType = param$Heatmap.Type,

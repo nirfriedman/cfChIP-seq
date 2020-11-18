@@ -24,12 +24,6 @@ if( exists("DevelpomentMode") && !DevelopmentMode ) {
   ANNOTDIR = DataDir
 } else  {
   DevelopmentMode = TRUE
-#  Mod = "H3K4me3/"
-#  ANNOTDIR = paste0(SourceDIR, "SetupFiles/", Mod)
-#  DataDir = paste0("~/BloodChIP/Data/Analysis-Paper/Samples/", Mod)
-#  BEDDIR = paste0("~/BloodChIP/Data/Analysis-Paper/BED/", Mod)
-#  OutputDir = paste0("~/BloodChIP/Data/Analysis-Paper/Output/", Mod)
-#  SetupDIR  = ANNOTDIR
 }
 
 OrigDir = getwd()
@@ -71,10 +65,12 @@ standard_option_list = list(
               help = "Specify an alternative configuration file")
 )
 
-if(!exists("option_list"))
-  option_list = list()
+if(!exists("option_list")){
+  coption_list = standard_option_list
+} else
+  coption_list = c(standard_option_list, option_list)
 
-opt_parser = OptionParser(option_list=c(standard_option_list,option_list));
+opt_parser = OptionParser(option_list=coption_list);
 if( exists("trailing.options") ) {
   catn("CMD line = ", trailing.options)
   opt = parse_args(opt_parser, args = trailing.options, positional_arguments = TRUE)
@@ -130,7 +126,7 @@ if( !is.null(opt$options$outputdir)) {
     if( !DevelopmentMode  ) {
       OutputDir = OrigDir
     } else
-      OutputDir = paste0("~/Data/BloodChIP/Output/", Mod)
+      OutputDir = paste0("~/Data/BloodChIP/Output/", TargetMod, "/")
   }
 
 
@@ -225,7 +221,11 @@ catn("DataDir", DataDir)
     GeneDescription=GeneDescription[,-1]
     GeneDescription$Description = gsub(",",";",GeneDescription$Description)
   }
-  
+  WinDescription = mcols(TSS.windows)
+  colnames(WinDescription) = sapply(colnames(WinDescription), function(x) paste0(toupper(substr(x,1,1)), substr(x,2,width(x))))
+  colnames(WinDescription) = sub("Name", "Gene", colnames(WinDescription))
+  rownames(WinDescription) = 1:length(TSS.windows)
+
   QC.filename = paste0(SetupDIR,"QC.bed")
   QC.bed = TSS.windows
   if( LoadQC && file.exists(QC.filename) ) {

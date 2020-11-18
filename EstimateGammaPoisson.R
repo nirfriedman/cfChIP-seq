@@ -642,3 +642,20 @@ if(0) {
   p = p + ylim(75,125)
   p
 }
+
+#
+EstimatePoissonConfidenceInterval = function(X, alpha = 0.025) {
+  x.up = uniroot(function(l) ppois(X,l) - alpha, c(X,10*(X+5)) )$root
+  x.down = 0
+  if( X > 0 )
+    x.down =   uniroot(function(l) ppois(X-1,l) - 1 + alpha, c(0,X) )$root
+  c(x.down, x.up)
+}
+
+EstimateNormalizedPoissonConfidenceInterval =  function(Obs, Bg, QQnorm, alpha = 0.025) {
+  c = EstimatePoissonConfidenceInterval(Obs, alpha)
+  c = c - Bg
+  c = c * QQnorm
+  c[c<0] = 0
+  c
+}

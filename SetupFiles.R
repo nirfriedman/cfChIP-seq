@@ -1,4 +1,5 @@
-#!/usr/bin/env Rscript --vanilla#
+#!/usr/bin/env Rscript --vanilla
+#
 
 
 initial.options <- commandArgs(trailingOnly = FALSE)
@@ -8,9 +9,12 @@ if( !any(grepl("--interactive", initial.options)) ) {
   SourceDIR <- paste0(dirname(script.name),"/")
   DataDir = paste0(getwd(), "/")
 } else {
-  SourceDIR = "~/BloodChIP/Src/"
-  DataDir = "~/BloodChIP/Src/SetupFiles/H3K4me3/"
-  TargetMod = "H3K4me3"
+  SourceDIR = "~/Google Drive/Src/BloodChIPAnalysis/"
+#  DataDir = "~/Data/BloodChIP/SetupFiles/H3K4me3/"
+  DataDir = "~/GoogleDrive/Src/BloodChIPAnalysis/SetupFiles/H3K4me3-scer/"
+  # SourceDIR = "~/GoogleDrive/BloodChIPAnalysis"
+  # DataDir = "~/GoogleDrive/BloodChIPAnalysis/SetupFiles/H3K4me3-scer/"
+  TargetMod = "H3K4me3-scer"
 }
 
 suppressWarnings(library(ggplot2))

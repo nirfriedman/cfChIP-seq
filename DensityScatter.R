@@ -12,11 +12,17 @@ library(MASS)
 # @param n Create a square n by n grid to compute density.
 # @return The density within each square.
 get_density <- function(x, y, ...) {
-  dens <- MASS::kde2d(x, y, ...)
-  ix <- findInterval(x, dens$x)
-  iy <- findInterval(y, dens$y)
+  Zeps = 0.0001*(runif(length(x))-.5)
+  I = !is.na(x) & !is.na(y) & !is.infinite(x) & !is.infinite(y)
+  x[I] = x[I] + Zeps[I]
+  y[I] = y[I] + Zeps[I]
+  dens <- MASS::kde2d(x[I], y[I], ...)
+  ZZ = rep(NA, length(x))
+  ix <- findInterval(x[I], dens$x)
+  iy <- findInterval(y[I], dens$y)
   ii <- cbind(ix, iy)
-  return(dens$z[ii])
+  ZZ[I] = dens$z[ii]
+  return(ZZ)
 }
 
 

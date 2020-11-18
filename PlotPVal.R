@@ -18,10 +18,15 @@ plotPVal = function( PVals, Counts,
                      MaxNameLength = 50,
                      DarkBackground = FALSE) {
   
+  OldRowNames = rownames(PVals)
+  OldColNames = colnames(PVals)
   rownames(PVals) = strtrim(rownames(PVals), MaxNameLength)
   rownames(Counts) = strtrim(rownames(Counts), MaxNameLength)
   colnames(PVals) = strtrim(colnames(PVals), MaxNameLength)
   colnames(Counts) = strtrim(colnames(Counts), MaxNameLength)
+  names(OldRowNames) = rownames(PVals)
+  names(OldColNames) = colnames(PVals)
+  
   Q.Values = PVals
   if( PValueAdjust ) 
     Q.Values[] =  -log10(p.adjust(exp(-log(10)*Q.Values),method="fdr"))
@@ -168,6 +173,13 @@ plotPVal = function( PVals, Counts,
     pC = pC + scale_fill_gradient(low = "white",high = "orange")
     list( QVals = Q.Values, plot.Q = pQ, plot.C = pC)
   }
+  colnames(Q.Values) = OldColNames[colnames(Q.Values)]
+  colnames(PVals) = OldColNames[colnames(PVals)]
+  colnames(Counts) = OldColNames[colnames(Counts)]
+  rownames(Q.Values) = OldRowNames[rownames(Q.Values)]
+  rownames(PVals) = OldRowNames[rownames(PVals)]
+  rownames(Counts) = OldRowNames[rownames(Counts)]
+  
   list( QVals = Q.Values, plot.Q = p, PVals = PVals, Counts = Counts)
 }
 
